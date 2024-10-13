@@ -1,53 +1,80 @@
 const Quiz = require('../models/Quiz');
-const Question = require('../models/Question');
-let curr_quiz;
 
-exports.createQuiz = async (req, res) => {
+const createQuiz = async (req, res) => {
+  try {
     const { title, description, questions } = req.body;
-    try {
-        const quiz = new Quiz({ title, description, questions, creator: req.user });
-        await quiz.save();
-        curr_quiz = { title, description, questions, creator: req.user }
-        res.status(201).json(quiz);
-    } catch (err) {
-        res.status(500).send('Server Error ' + err);
+
+    if (!title || !description || !questions || !Array.isArray(questions)) {
+      return res.status(400).json({ error: 'Invalid input data' });
     }
+
+    const newQuiz = new Quiz({ title, description, questions });
+    const savedQuiz = await newQuiz.save();
+
+    res.status(201).json({
+      message: 'Quiz created successfully',
+      quiz: savedQuiz
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error while creating the quiz' });
+  }
 };
 
-exports.getQuizzes = async (req, res) => {
-    try {
-        const quizzes = curr_quiz.questions;
-        res.json(quizzes);
-    } catch (err) {
-        res.status(500).send('Server Error ' + err);
-    }
+
+const getQuizzes = async (req, res) => {
+  try {
+    const quizzes = await Quiz.find();
+    res.status(200).json(quizzes);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error while fetching quizzes' });
+  }
 };
 
-exports.getQuizDetails = async (req, res) => {
-    try {
-        const quiz = await Quiz.findById(req.params.id).populate('questions');
-        if (!quiz) return res.status(404).json({ msg: 'Quiz not found' });
-        res.json(quiz);
-    } catch (err) {
-        res.status(500).send('Server Error ' + err);
+
+const getQuizDetails = async (req, res) => {
+  try {
+    const quiz = await Quiz.findById(req.params.id);
+
+    if (!quiz) {
+      return res.status(404).json({ error: 'Quiz not found' });
     }
+
+    res.status(200).json(quiz);
+  } catch (error) {
+    res.status(500).json({ error: 'Server error while fetching quiz details' });
+  }
 };
 
-exports.takeQuiz = async (req, res) => {
+
+const takeQuiz = async (req, res) => {
+  try {
     const { answers } = req.body;
-    try {
-        const quiz = await Quiz.findById(req.params.id).populate('questions');
-        if (!quiz) return res.status(404).json({ msg: 'Quiz not found' });
+    const quizId = req.params.id;
 
-        let score = 0;
-        quiz.questions.forEach((question, index) => {
-            if (question.correctAnswer === answers[index]) {
-                score++;
-            }
-        });
-
-        res.json({ score, totalQuestions: quiz.questions.length });
-    } catch (err) {
-        res.status(500).send('Server Error ' + err);
+    const quiz = await Quiz.findById(quizId);
+    if (!quiz) {
+      return res.status(404).json({ error: 'Quiz not found' });
     }
+
+    if (!answers || !Array.isArray(answers)) {
+      return res.status(400).json({ error: 'Invalid input data' });
+    }
+
+    let score = 0;
+    quiz.questions.forEach((question, index) => {
+      if (question.correctOptionIndex === answers[index]) {
+        score++;
+      }
+    });
+
+    res.status(200).json({
+      message: 'Quiz completed successfully',
+      score: score,
+      totalQuestions: quiz.questions.length
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Server error while taking the quiz' });
+  }
 };
+
+module.exports = { createQuiz, getQuizzes, getQuizDetails, takeQuiz };
